@@ -16,6 +16,7 @@ Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 Route::middleware('auth:api')->post('user', [AuthController::class, 'getUser']);
 Route::middleware('auth:api')->post('logout', [AuthController::class, 'logout']);
+Route::middleware('auth:api')->post('update', [AuthController::class, 'update']);
 Route::middleware('auth:api')->delete('delete', [AuthController::class, 'deleteUser']);
 
 Route::post('post-create/{userId}', [PostController::class, 'create']);

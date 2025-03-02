@@ -73,29 +73,19 @@ class AuthController extends Controller
         ]);
 
         if($validator->fails()) {
-            return response()->json([
-                'status' => 'error',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->sendError($validator->errors(),msg: "error");
         }
 
         if (Auth::attempt(['email' => $request->email, 'password' => $request->password])) {
             $user = Auth::user();
             $token = $user->createToken('authToken')->accessToken;
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Login successful',
-                'user' => $user,
-                'token' => $token,
-            ], 200);
+            return $this->sendResponse(UserResource::tokenUser($token));
+
         }
 
         // Authentication failed
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Invalid credentials',
-        ], 401);
+        return $this->sendError(msg: "Invalid credentials");
     }
 
     private function findUser(): \Illuminate\Http\JsonResponse|\Illuminate\Contracts\Auth\Authenticatable
@@ -113,9 +103,53 @@ class AuthController extends Controller
     {
         $user = $this->findUser();
 
+        return $this->sendResponse(UserResource::make($user));
+    }
+
+    public function update(Request $request)
+    {
+        $user = Auth::user();
+
+        // Check if the user is authenticated
+        if (!$user) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'User not authenticated'
+            ], 401);
+        }
+
+        // Validate incoming data
+        $validator = Validator::make($request->all(), [
+            'name' => 'sometimes|string|max:255',
+            'email' => 'sometimes|string|email|max:255|unique:users,email,' . $user->id,
+            'short_bio' => 'sometimes|string|max:255',
+            // Add other fields you want to allow the user to update
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // Update the user data if validation passes
+        $user->name = $request->input('name', $user->name);  // Update name if provided, otherwise keep existing value
+        $user->email = $request->input('email', $user->email);  // Same for email
+        $user->short_bio = $request->input('short_bio', $user->short_bio);  // Update short bio
+
+        // Add any other fields you want to update
+
+        // Save the updated user
+        $user->save();
+
+        // Return updated user data or a success message
         return response()->json([
-            'user' => UserResource::make($user),
-        ], 200);
+            'status' => 'success',
+            'message' => 'Profile updated successfully',
+            'user' => UserResource::make($user)  // Optionally, return the updated user data
+        ]);
     }
 
     public function logout(Request $request): \Illuminate\Http\JsonResponse

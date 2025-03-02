@@ -83,19 +83,7 @@ class PostController extends Controller
             $post->comment_counts = $post->comments()->count();
             return $post;
         });
-
-        return response()->json([
-            'is_last_page' => !$posts->hasMorePages(),  // Check if there's no next page
-            'current_page' => $posts->currentPage(),    // Current page number
-            'total_pages' => $posts->lastPage(),        // Total pages
-            'per_page' => $posts->perPage(),            // Items per page
-            'total_items' => $posts->total(),           // Total items
-            'lists' => PostResource::collection($posts->items()),                 // The actual data of the current page
-            'next_page_url' => $posts->nextPageUrl(),   // URL for the next page (null if no next page)
-            'previous_page_url' => $posts->previousPageUrl(), // URL for the previous page (null if no previous page)
-            'first_page_url' => $posts->url(1),         // URL for the first page
-            'last_page_url' => $posts->url($posts->lastPage()) // URL for the last page
-        ]);
+        return $this->paginateData($posts, PostResource::collection($posts->items()));
     }
 
 
