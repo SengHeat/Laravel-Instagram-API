@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\UserResource;
 use App\Models\Comment;
 use App\Models\Post;
 use Illuminate\Http\Request;
@@ -14,23 +15,56 @@ class CommentController extends Controller
      */
     public function index($postId)
     {
-        // Retrieve comments for a specific post
-        $comments = Post::findOrFail($postId)->comments;
-        $post = Post::findOrFail($postId);
+        try {
+            // Retrieve the post to ensure it exists
+            $post = Post::findOrFail($postId);
 
-        // Count the likes for the post
-        $likesCount = $post->likes()->count();
+            // Paginate the comments for the post (10 comments per page)
+            $comments = $post->comments()->paginate(10);
 
-        return response()->json([
-            'comments' => $comments,
-            'like_counts' => $likesCount
-        ]);
+            // Loop through the comments and attach the user's ID, name, and profile image, along with reply comments
+            $comments->getCollection()->transform(function ($comment) {
+                // Load the related user for the comment
+                $user = $comment->user;
+                unset($comment->user);
+
+                // Add the user's ID, name, and profile image to the comment response using UserResource
+                $comment->user = UserResource::userIdNameAndProfile($user);
+
+                // Load the reply comments for the current comment
+                $replyComments = $comment->replyComments;
+
+                // Loop through each reply comment and attach the user's details (id, name, and profile image)
+                $comment->reply_comment = $replyComments->map(function ($reply) {
+                    // Load the related user for the reply
+                    $user = $reply->user;
+                    unset($reply->user);
+
+                    // Add the user's ID, name, and profile image to the reply comment response
+                    $reply->user = UserResource::userIdNameAndProfile($user);
+
+                    return $reply;
+                });
+
+                return $comment;
+            });
+
+            // Return the paginated comments with user information and reply comments
+            return $this->paginateData($comments, $comments->items());
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            // Handle case where the post was not found
+            return $this->sendError(code: 404, msg: "Post not found");
+        } catch (\Exception $e) {
+            // Handle any other exceptions
+            return $this->sendError(code: 500, msg: "An error occurred while retrieving comments $e");
+        }
     }
 
     /**
      * Store a newly created comment for a specific post.
      */
-    public function store(Request $request, $postId)
+    public function store(Request $request, $postId): \Illuminate\Http\JsonResponse
     {
         $request->validate([
             'comment' => 'required|string|max:1000',
@@ -48,10 +82,7 @@ class CommentController extends Controller
         // Save the comment
         $comment->save();
 
-        return response()->json([
-            'message' => 'Comment created successfully',
-            'comment' => $comment,
-        ], 201);
+        return  $this->sendResponse($comment, code: 200, msg: "Comment created successfully");
     }
 
     /**

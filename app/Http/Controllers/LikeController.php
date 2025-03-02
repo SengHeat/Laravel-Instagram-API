@@ -59,14 +59,18 @@ class LikeController extends Controller
      */
     public function getLikesCount($postId)
     {
-        $post = Post::findOrFail($postId);
+        try {
+            // Fetch the post by its ID or fail
+            $post = Post::findOrFail($postId);
 
-        // Count the likes for the post
-        $likesCount = $post->likes()->count();
+            // Count the likes for the post
+            $likesCount = $post->likes()->count();
 
-        return response()->json([
-            'likes_count' => $likesCount,
-        ], 200);
+            return $this->sendResponse(['likes_count' => $likesCount]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            // Return a custom error message if the post is not found
+            return $this->sendError(code: 404, msg: "Post not found");
+        }
     }
 
     /**

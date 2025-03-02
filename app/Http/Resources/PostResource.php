@@ -21,6 +21,7 @@ class PostResource extends JsonResource
             'user_id' => $this->user_id,
             'comment_count' => $this->comment_counts,
             'like_counts' => $this->like_counts,  // Assuming you're using `withCount('likes')`
+            'is_liked' => $this->is_liked
         ];
     }
 }

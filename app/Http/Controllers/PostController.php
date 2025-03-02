@@ -73,16 +73,30 @@ class PostController extends Controller
 
     public function index()
     {
-        // Fetch the latest posts and paginate (1 post per page in this example)
+        // Fetch the latest posts and paginate (10 posts per page)
         $posts = Post::orderBy('created_at', 'desc')->paginate(10);
 
-        // Add like count for each post
-        $posts->getCollection()->transform(function ($post) {
-            // Count likes for each post
+        // Get authenticated user
+        $user = auth()->user();
+
+        // Add like count, comment count, and is_liked field
+        $posts->getCollection()->transform(function ($post) use ($user) {
             $post->like_counts = $post->likes()->count();
             $post->comment_counts = $post->comments()->count();
+//            $post->is_liked = $user ? $post->likes()->where('user_id', $user->id)->exists() : false; // Check if user liked the post
+
+            // Check if the authenticated user liked the post
+            $user = auth()->user();
+            if ($user) {
+                $post->is_liked = $post->likes()->where('user_id', $user['id'])->exists();
+            } else {
+                $post->is_liked = false;
+            }
+
             return $post;
         });
+
+
         return $this->paginateData($posts, PostResource::collection($posts->items()));
     }
 

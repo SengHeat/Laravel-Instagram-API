@@ -25,4 +25,10 @@ class Comment extends Model
     {
       return $this->belongsTo(Post::class);
     }
+    public function replyComments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ReplyComment::class);
+    }
+
+
 }

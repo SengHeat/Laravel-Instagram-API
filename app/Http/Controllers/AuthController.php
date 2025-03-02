@@ -2,34 +2,23 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\UserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
 {
-    public function register(Request $request)
+
+    private function uploadUserProfile(UserRequest $request): ?string
     {
         $imagePath = null;
 
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|min:6|confirmed',  // Ensure password confirmation field exists
-            'user_profile' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',  // Validate image (optional)
-            'short_bio' => 'nullable|string|max:255'
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'errors' => $validator->errors()
-            ], 400);  // Return 400 Bad Request if validation fails
-        }
-
-        //handle file upload
         if($request->hasFile('user_profile')) {
             $image = $request->file('user_profile');
             $name = time().'.'.$image->getClientOriginalExtension();
@@ -46,23 +35,26 @@ class AuthController extends Controller
             // Now store the path to the uploaded image correctly
             $imagePath = 'uploads/users/' . $name;
         }
+        return $imagePath;
+    }
+    public function register(UserRequest $request): \Illuminate\Http\JsonResponse
+    {
 
+        // The request is already validated by the UserRequest class
+        $validated = $request->validated();
+
+        Log::info($validated['name']);
 
         $user = User::create([
-            'name' => $request->get('name'),
-            'email' => $request->get('email'),
-            'password' => Hash::make($request->get('password')),
-            'user_profile' => $imagePath,
-            'short_bio' => $request->get('short_bio'),
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'user_profile' => $this->uploadUserProfile($request),
+            'short_bio' => $validated['short_bio'],
         ]);
 
         $token = $user->createToken('AuthToken')->accessToken;
-
-        // Return response with the token and user data
-        return response()->json([
-            'token' => $token,
-            'user' => $user
-        ], 201);  // Status code 201 for Created
+        return $this->sendResponse(UserResource::tokenUser($token));
     }
 
     public function login(Request $request): \Illuminate\Http\JsonResponse
@@ -106,22 +98,18 @@ class AuthController extends Controller
         return $this->sendResponse(UserResource::make($user));
     }
 
-    public function update(Request $request)
+    public function update(Request $request): \Illuminate\Http\JsonResponse
     {
         $user = Auth::user();
-
         // Check if the user is authenticated
         if (!$user) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'User not authenticated'
-            ], 401);
+            return $this->sendError(msg: "User not authenticated");
         }
 
         // Validate incoming data
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|string|max:255',
-            'email' => 'sometimes|string|email|max:255|unique:users,email,' . $user->id,
+            'email' => 'sometimes|string|email|max:255|unique:users,email,',
             'short_bio' => 'sometimes|string|max:255',
             // Add other fields you want to allow the user to update
         ]);
@@ -136,20 +124,21 @@ class AuthController extends Controller
 
         // Update the user data if validation passes
         $user->name = $request->input('name', $user->name);  // Update name if provided, otherwise keep existing value
-        $user->email = $request->input('email', $user->email);  // Same for email
         $user->short_bio = $request->input('short_bio', $user->short_bio);  // Update short bio
-
-        // Add any other fields you want to update
-
+//        $newImagePath = $this->uploadUserProfile($request);
+//        // Add any other fields you want to update
+//        if ($newImagePath) {
+//            // Delete old profile image if exists
+//            if ($user->user_profile) {
+//                Storage::disk('public')->delete($user->user_profile);
+//            }
+//            $user->user_profile = $newImagePath;
+//        }
         // Save the updated user
         $user->save();
 
         // Return updated user data or a success message
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Profile updated successfully',
-            'user' => UserResource::make($user)  // Optionally, return the updated user data
-        ]);
+        return $this->sendResponse(UserResource::make($user));
     }
 
     public function logout(Request $request): \Illuminate\Http\JsonResponse
