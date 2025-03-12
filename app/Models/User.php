@@ -63,9 +63,4 @@ class User extends Authenticatable
     {
         return $this->hasMany(Like::class);
     }
-
-    public function replyComments(): \Illuminate\Database\Eloquent\Relations\HasMany
-    {
-        return $this->hasMany(ReplyComment::class);
-    }
 }
